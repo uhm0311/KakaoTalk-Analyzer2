@@ -77,8 +77,7 @@ namespace kakaotalk_analyzer.Core
 
             var date_regex = new Regex(@"--------------- (\d+)년 (\d+)월 (\d+)일 (\w+ )?---------------");
             var date_eng_regex = new Regex(@"--------------- \w+, (\w+) (\d+), (\d+) ---------------");
-            var message_regex1 = new Regex(@"\[([\w\W]+)\]\s*\[(\w+) (\d+)\:(\d+)\]([\w\W]+)");
-            var message_regex2 = new Regex(@"\s*\[(\w+) (\d+)\:(\d+)\]([\w\W]+)");
+            var message_regex = new Regex(@"\[([\w\W]+)\]\s*\[(\w+) (\d+)\:(\d+)\]([\w\W]+)");
 
             var invite_regex = new Regex(@"(.*?)님이 (.*?)님을 초대하였습니다\.");
             var in_regex = new Regex(@"(.*?)님이 들어왔습니다\.");
@@ -92,58 +91,29 @@ namespace kakaotalk_analyzer.Core
                 var line = lines[i];
                 try
                 {
-                    if (reg(line, message_regex1).Count > 0)
+                    var tt = reg(line, message_regex);
+                    if (tt.Count > 0)
                     {
-                        try
+                        var time = tt[2].ToInt();
+
+                        if (tt[1] == "오후")
                         {
-                            var builder = new StringBuilder();
-                            var ptr = 1;
-
-                            // Name
-                            var deep = 0;
-                            for (; ptr < line.Length; ptr++)
-                            {
-                                if (line[ptr] == '[')
-                                    deep++;
-                                else if (line[ptr] == ']')
-                                {
-                                    if (deep == 0)
-                                        break;
-                                    deep--;
-                                }
-                                builder.Append(line[ptr]);
-                            }
-
-                            var tt = reg(line.Substring(ptr + 1), message_regex2);
-
-                            var time = tt[1].ToInt();
-
-                            if (tt[0] == "오후")
-                            {
-                                if (time != 12)
-                                    time += 12;
-                            }
-                            else if (time == 12)
-                                time = 0;
-
-                            latest_time = new DateTime(current_year, current_month, current_day, time, tt[2].ToInt(), 0);
-                            Talks.Add(new Talk
-                            {
-                                State = TalkState.Message,
-                                Index = index_count,
-                                Name = builder.ToString(),
-                                Content = tt[3].Trim(),
-                                Time = latest_time
-                            });
-                            current_name = builder.ToString();
+                            if (time != 12)
+                                time += 12;
                         }
-                        catch (Exception e)
+                        else if (time == 12)
+                            time = 0;
+
+                        latest_time = new DateTime(current_year, current_month, current_day, time, tt[3].ToInt(), 0);
+                        Talks.Add(new Talk
                         {
-                            if (Talks.Last().State == TalkState.Message || Talks.Last().State == TalkState.Append)
-                                Talks.Add(new Talk { State = TalkState.Append, Index = index_count, Content = line, Name = current_name, Time = latest_time });
-                            else
-                                throw e;
-                        }
+                            State = TalkState.Message,
+                            Index = index_count,
+                            Name = tt[0],
+                            Content = tt[4].Trim(),
+                            Time = latest_time
+                        });
+                        current_name = tt[0];
                     }
                     else if (line.StartsWith("---------------") && date_regex.Match(line).Success)
                     {
